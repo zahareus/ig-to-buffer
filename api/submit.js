@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
   const { url } = req.body;
 
-  // 1. Витягуємо зображення та автора через RapidAPI
+  // 1. Витягуємо дані через RapidAPI
   const apiRes = await fetch("https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink", {
     method: "POST",
     headers: {
@@ -24,7 +24,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Could not extract image or author", raw: apiData });
   }
 
-  // 2. Генеруємо текст через OpenAI
+  // 2. Завантажуємо зображення у imgbb
+  const imageRes = await fetch(imageUrl);
+  const imageBuffer = await imageRes.arrayBuffer();
+  const base64Image = Buffer.from(imageBuffer).toString('base64');
+
+  const imgbbUpload = await fetch(`https://api.imgbb.com/1/upload?key=${process.env.IMGBB_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      image: base64Image
+    })
+  });
+
+  const imgbbData = await imgbbUpload.json();
+  const hostedImageUrl = imgbbData?.data?.url;
+
+  if (!hostedImageUrl) {
+    return res.status(500).json({ error: 'Failed to upload image to imgbb', raw: imgbbData });
+  }
+
+  // 3. Генеруємо опис через OpenAI
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -43,7 +63,7 @@ export default async function handler(req, res) {
             },
             {
               type: "image_url",
-              image_url: { url: imageUrl }
+              image_url: { url: hostedImageUrl }
             }
           ]
         }
@@ -55,15 +75,15 @@ export default async function handler(req, res) {
   const aiData = await openaiRes.json();
   const caption = aiData.choices?.[0]?.message?.content || "No caption generated.";
 
-  // 3. Відправка в Zapier
+  // 4. Відправляємо у Zapier
   const zapierRes = await fetch(process.env.ZAPIER_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageUrl, caption, author })
+    body: JSON.stringify({ image: hostedImageUrl, caption, author })
   });
 
   const zapData = await zapierRes.text();
 
-  // 4. Повертаємо результат назад у фронт
-  res.status(200).json({ imageUrl, caption, author, zapierResponse: zapData });
+  // 5. Повертаємо результат
+  res.status(200).json({ imageUrl: hostedImageUrl, caption, author, zapierResponse: zapData });
 }
