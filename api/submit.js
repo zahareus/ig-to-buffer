@@ -1,4 +1,3 @@
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -6,23 +5,25 @@ export default async function handler(req, res) {
 
   const { url } = req.body;
 
-  // 1. Витягуємо картинку (дуже базовий HTML-парсер)
-  const response = await fetch(url, {
+  // 1. Витягуємо зображення через RapidAPI
+  const apiRes = await fetch("https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink", {
+    method: "POST",
     headers: {
-      'User-Agent': 'Mozilla/5.0'
-    }
+      "content-type": "application/json",
+      "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
+      "X-RapidAPI-Host": "auto-download-all-in-one-big.p.rapidapi.com"
+    },
+    body: JSON.stringify({ url })
   });
-  const html = await response.text();
 
-  const imageRegex = /property="og:image" content="(.*?)"/;
-  const match = html.match(imageRegex);
-  const imageUrl = match?.[1];
+  const apiData = await apiRes.json();
+  const imageUrl = apiData?.media?.[0]?.url;
 
   if (!imageUrl) {
-    return res.status(400).json({ error: 'Could not extract image' });
+    return res.status(400).json({ error: "Could not extract image" });
   }
 
-  // 2. Запит до OpenAI
+  // 2. Викликаємо OpenAI для генерації опису
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -35,8 +36,14 @@ export default async function handler(req, res) {
         {
           role: "user",
           content: [
-            { type: "text", text: `Create a short, philosophical English caption with emoji for this Instagram photo. Then on a new line add 3-5 popular context-based hashtags.` },
-            { type: "image_url", image_url: { url: imageUrl } }
+            {
+              type: "text",
+              text: `Create a short, philosophical English caption with emoji for this Instagram photo. Then on a new line add 3-5 popular context-based hashtags.`
+            },
+            {
+              type: "image_url",
+              image_url: { url: imageUrl }
+            }
           ]
         }
       ],
@@ -45,17 +52,17 @@ export default async function handler(req, res) {
   });
 
   const aiData = await openaiRes.json();
-  const text = aiData.choices?.[0]?.message?.content || "No result";
+  const caption = aiData.choices?.[0]?.message?.content || "No caption generated.";
 
-  // 3. Відправка в Zapier
+  // 3. Надсилаємо в Zapier
   const zapierRes = await fetch(process.env.ZAPIER_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageUrl, caption: text })
+    body: JSON.stringify({ image: imageUrl, caption })
   });
 
   const zapData = await zapierRes.text();
 
-  // 4. Результат назад у браузер
-  res.status(200).json({ imageUrl, caption: text, zapierResponse: zapData });
+  // 4. Повертаємо результат назад у фронт
+  res.status(200).json({ imageUrl, caption, zapierResponse: zapData });
 }
