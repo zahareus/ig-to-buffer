@@ -20,10 +20,10 @@ export default async function handler(req, res) {
   const imageUrl = apiData?.media?.[0]?.url;
 
   if (!imageUrl) {
-    return res.status(400).json({ error: "Could not extract image" });
+    return res.status(400).json({ error: "Could not extract image", raw: apiData });
   }
 
-  // 2. Викликаємо OpenAI для генерації опису
+  // 2. Генеруємо текст через OpenAI
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
   const aiData = await openaiRes.json();
   const caption = aiData.choices?.[0]?.message?.content || "No caption generated.";
 
-  // 3. Надсилаємо в Zapier
+  // 3. Відправка в Zapier
   const zapierRes = await fetch(process.env.ZAPIER_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
