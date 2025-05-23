@@ -3,48 +3,68 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Send Instagram Post to Buffer</title>
+  <title>Send Image to Buffer</title>
   <style>
     body {
       font-family: sans-serif;
       padding: 2em;
     }
-    input {
+    input, button {
       padding: 0.5em;
-      margin-right: 0.5em;
-      width: 300px;
+      margin: 0.5em 0;
     }
-    button {
-      padding: 0.5em 1em;
+    #authorInput {
+      display: none;
     }
     pre {
-      margin-top: 2em;
       background: #f4f4f4;
       padding: 1em;
+      margin-top: 1em;
       border-radius: 5px;
-      overflow-x: auto;
+      white-space: pre-wrap;
     }
   </style>
 </head>
 <body>
-  <h1>Send Instagram Post to Buffer</h1>
+  <h1>Send Image to Buffer</h1>
   <form id="form">
-    <input type="url" id="igUrl" name="url" placeholder="Paste Instagram URL" required />
+    <input type="url" id="igUrl" placeholder="Paste image or Instagram URL" required style="width: 100%; max-width: 500px;" />
+    <div id="authorInput">
+      <label for="author">Author name (for non-Instagram images):</label><br/>
+      <input type="text" id="author" placeholder="e.g. photowalkglobal" style="width: 100%; max-width: 300px;" />
+    </div>
     <button type="submit">Submit</button>
   </form>
   <pre id="output"></pre>
 
   <script>
-    document.getElementById('form').addEventListener('submit', async (e) => {
+    const urlInput = document.getElementById('igUrl');
+    const authorBlock = document.getElementById('authorInput');
+    const form = document.getElementById('form');
+    const output = document.getElementById('output');
+
+    urlInput.addEventListener('input', () => {
+      const val = urlInput.value;
+      if (!val.includes('instagram.com')) {
+        authorBlock.style.display = 'block';
+      } else {
+        authorBlock.style.display = 'none';
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const url = document.getElementById('igUrl').value;
+      const url = urlInput.value;
+      const author = document.getElementById('author').value;
+
       const res = await fetch('/api/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, author })
       });
+
       const data = await res.json();
-      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+      output.textContent = JSON.stringify(data, null, 2);
     });
   </script>
 </body>
