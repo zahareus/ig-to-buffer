@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   const mime = 'image/jpeg';
   const base64url = `data:${mime};base64,${base64}`;
 
-  // 3. Викликаємо OpenAI gpt-4o (Vision)
+  // 3. Викликаємо OpenAI gpt-4o (Vision) з новим промптом
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
           content: [
             {
               type: "text",
-              text: `Create a short, philosophical English caption with emoji for this Instagram photo. Then on a new line add 3-5 popular context-based hashtags.`
+              text: `Analyze the Instagram photo and write two short philosophical English sentences inspired by it. Use emojis contextually. Then on a new line, add 3–5 relevant and popular Instagram hashtags.`
             },
             {
               type: "image_url",
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
           ]
         }
       ],
-      max_tokens: 300
+      max_tokens: 400
     })
   });
 
