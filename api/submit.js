@@ -3,18 +3,35 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png';
-  const author = 'test_case_author';
+  const { url } = req.body;
 
-  // 1. Завантажуємо зображення → конвертуємо в base64
+  // 1. Витягуємо Instagram-дані через RapidAPI
+  const apiRes = await fetch("https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "X-RapidAPI-Key": process.env.RAPIDAPI_KEY,
+      "X-RapidAPI-Host": "auto-download-all-in-one-big.p.rapidapi.com"
+    },
+    body: JSON.stringify({ url })
+  });
+
+  const apiData = await apiRes.json();
+  const imageUrl = apiData?.medias?.[0]?.url;
+  const author = apiData?.owner?.username;
+
+  if (!imageUrl || !author) {
+    return res.status(400).json({ error: "Could not extract image or author", raw: apiData });
+  }
+
+  // 2. Завантажуємо зображення та кодуємо у base64
   const imageRes = await fetch(imageUrl);
   const imageBuffer = await imageRes.arrayBuffer();
   const base64 = Buffer.from(imageBuffer).toString('base64');
-  const mime = 'image/png';
-
+  const mime = 'image/jpeg';
   const base64url = `data:${mime};base64,${base64}`;
 
-  // 2. Надсилаємо в OpenAI Vision
+  // 3. Викликаємо OpenAI gpt-4o (Vision)
   const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -22,14 +39,14 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      model: "gpt-4-vision-preview",
+      model: "gpt-4o",
       messages: [
         {
           role: "user",
           content: [
             {
               type: "text",
-              text: `Create a short, philosophical English caption with emoji for this PNG image. Then on a new line add 3-5 popular context-based hashtags.`
+              text: `Create a short, philosophical English caption with emoji for this Instagram photo. Then on a new line add 3-5 popular context-based hashtags.`
             },
             {
               type: "image_url",
@@ -45,7 +62,7 @@ export default async function handler(req, res) {
   const aiData = await openaiRes.json();
   const caption = aiData.choices?.[0]?.message?.content || "No caption generated.";
 
-  // 3. Відправляємо у Zapier
+  // 4. Надсилаємо в Zapier
   const zapierRes = await fetch(process.env.ZAPIER_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -54,6 +71,6 @@ export default async function handler(req, res) {
 
   const zapData = await zapierRes.text();
 
-  // 4. Віддаємо результат
+  // 5. Повертаємо результат у браузер
   res.status(200).json({ imageUrl, caption, author, zapierResponse: zapData });
 }
