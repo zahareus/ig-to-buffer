@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   });
 
   const apiData = await apiRes.json();
-  const imageUrl = apiData?.media?.[0]?.url;
+  const imageUrl = apiData?.medias?.[0]?.url; // <-- Виправлено тут
 
   if (!imageUrl) {
     return res.status(400).json({ error: "Could not extract image", raw: apiData });
