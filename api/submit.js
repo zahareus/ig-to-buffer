@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
   const { url } = req.body;
 
-  // 1. Витягуємо зображення через RapidAPI
+  // 1. Витягуємо зображення та автора через RapidAPI
   const apiRes = await fetch("https://auto-download-all-in-one-big.p.rapidapi.com/v1/social/autolink", {
     method: "POST",
     headers: {
@@ -17,10 +17,11 @@ export default async function handler(req, res) {
   });
 
   const apiData = await apiRes.json();
-  const imageUrl = apiData?.medias?.[0]?.url; // <-- Виправлено тут
+  const imageUrl = apiData?.medias?.[0]?.url;
+  const author = apiData?.owner?.username;
 
-  if (!imageUrl) {
-    return res.status(400).json({ error: "Could not extract image", raw: apiData });
+  if (!imageUrl || !author) {
+    return res.status(400).json({ error: "Could not extract image or author", raw: apiData });
   }
 
   // 2. Генеруємо текст через OpenAI
@@ -58,11 +59,11 @@ export default async function handler(req, res) {
   const zapierRes = await fetch(process.env.ZAPIER_WEBHOOK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image: imageUrl, caption })
+    body: JSON.stringify({ image: imageUrl, caption, author })
   });
 
   const zapData = await zapierRes.text();
 
   // 4. Повертаємо результат назад у фронт
-  res.status(200).json({ imageUrl, caption, zapierResponse: zapData });
+  res.status(200).json({ imageUrl, caption, author, zapierResponse: zapData });
 }
